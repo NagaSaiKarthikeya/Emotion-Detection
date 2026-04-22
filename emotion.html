@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Emotion Detection</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --beige-50:#fdf8f2; --beige-100:#f5ece0; --beige-200:#e8d5bc; --beige-300:#d4b896;
+    --blue-400:#6b8cba; --blue-500:#4f72a6; --blue-600:#3a5a8c; --blue-700:#2c4570;
+    --text-dark:#1e2d3d; --text-mid:#4a5a6b; --text-soft:#8a9aab;
+    --emotion-happy:#e8a020; --emotion-sad:#4f72a6; --emotion-angry:#c0614a;
+    --emotion-surprised:#7a5aa8; --emotion-fearful:#5a9e7a; --emotion-disgusted:#7a8a44; --emotion-neutral:#8a9aab;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'DM Sans',sans-serif; background:var(--beige-50); min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:28px 20px; overflow-x:hidden; }
+  body::before { content:''; position:fixed; inset:0; background: radial-gradient(ellipse 70% 50% at 15% 10%, rgba(107,140,186,0.1) 0%, transparent 60%), radial-gradient(ellipse 50% 70% at 85% 90%, rgba(212,184,150,0.2) 0%, transparent 60%); pointer-events:none; z-index:0; }
+  header { position:relative; z-index:1; display:flex; align-items:center; justify-content:space-between; width:100%; max-width:960px; margin-bottom:28px; }
+  .brand { display:flex; align-items:center; gap:12px; }
+  .logo-mark { width:42px; height:42px; background:linear-gradient(135deg,var(--blue-500),var(--blue-700)); border-radius:12px; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(79,114,166,0.3); }
+  .logo-mark svg { width:20px; height:20px; fill:none; stroke:white; stroke-width:2.2; stroke-linecap:round; }
+  .brand-name { font-family:'Playfair Display',serif; font-size:22px; color:var(--text-dark); font-weight:600; }
+  .brand-name span { font-family:'DM Sans',sans-serif; font-size:13px; font-weight:400; color:var(--text-soft); display:block; margin-top:-2px; }
+  .user-chip { display:flex; align-items:center; gap:8px; background:white; border:1px solid var(--beige-200); border-radius:100px; padding:7px 16px 7px 10px; font-size:13.5px; color:var(--text-mid); box-shadow:0 2px 8px rgba(42,70,110,0.07); }
+  .user-chip .dot { width:8px; height:8px; border-radius:50%; background:#5a9e7a; }
+  .logout-btn { background:none; border:none; color:var(--text-soft); cursor:pointer; font-size:13px; font-family:inherit; margin-left:10px; padding:4px 8px; border-radius:8px; transition:all 0.2s; }
+  .logout-btn:hover { background:var(--beige-100); color:var(--blue-600); }
+  .main-grid { position:relative; z-index:1; display:grid; grid-template-columns:1fr 340px; gap:24px; width:100%; max-width:960px; }
+  .camera-card { background:rgba(255,252,248,0.92); backdrop-filter:blur(20px); border:1px solid rgba(212,184,150,0.4); border-radius:24px; overflow:hidden; box-shadow:0 12px 40px rgba(42,70,110,0.14); animation:fadeUp 0.6s ease both; }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:none} }
+  .camera-toolbar { display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--beige-100); }
+  .camera-toolbar .label { font-size:13px; font-weight:500; color:var(--text-mid); letter-spacing:0.5px; text-transform:uppercase; display:flex; align-items:center; gap:7px; }
+  .rec-dot { width:7px; height:7px; border-radius:50%; background:#c0614a; animation:blink 1.2s ease-in-out infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+  .cam-status-chip { font-size:12px; padding:4px 12px; border-radius:100px; background:var(--beige-100); color:var(--text-soft); border:1px solid var(--beige-200); }
+  .cam-status-chip.active { background:rgba(90,158,122,0.12); color:#3d8560; border-color:rgba(90,158,122,0.3); }
+  .video-wrap { position:relative; width:100%; aspect-ratio:16/12; background:#111820; overflow:hidden; }
+  video, #overlay { position:absolute; top:0; left:0; width:100%; height:100%; }
+  video { object-fit:cover; }
+  #overlay { pointer-events:none; }
+  .no-face-msg { position:absolute; bottom:20px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.55); color:rgba(255,255,255,0.85); padding:8px 20px; border-radius:100px; font-size:13px; backdrop-filter:blur(8px); white-space:nowrap; display:none; }
+  .emotion-banner { padding:20px 24px; display:flex; align-items:center; gap:16px; border-top:1px solid var(--beige-100); }
+  .emotion-emoji { font-size:44px; line-height:1; filter:drop-shadow(0 2px 8px rgba(0,0,0,0.12)); transition:all 0.4s cubic-bezier(0.34,1.56,0.64,1); }
+  .emotion-info { flex:1; }
+  .emotion-label { font-family:'Playfair Display',serif; font-size:24px; font-weight:600; color:var(--text-dark); transition:color 0.4s; }
+  .emotion-conf { font-size:13px; color:var(--text-soft); margin-top:2px; }
+  .emotion-bar-wrap { height:6px; background:var(--beige-200); border-radius:100px; overflow:hidden; margin-top:8px; max-width:280px; }
+  .emotion-bar { height:100%; border-radius:100px; background:var(--blue-500); transition:width 0.5s ease, background 0.5s; width:0%; }
+  .side-panel { display:flex; flex-direction:column; gap:18px; animation:fadeUp 0.6s 0.1s ease both; }
+  .panel-card { background:rgba(255,252,248,0.92); backdrop-filter:blur(20px); border:1px solid rgba(212,184,150,0.4); border-radius:20px; padding:20px; box-shadow:0 6px 24px rgba(42,70,110,0.09); }
+  .panel-title { font-size:12px; font-weight:500; color:var(--text-soft); letter-spacing:0.8px; text-transform:uppercase; margin-bottom:16px; }
+  .emo-row { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+  .emo-row:last-child { margin-bottom:0; }
+  .emo-name { font-size:13px; color:var(--text-mid); width:90px; flex-shrink:0; font-weight:500; }
+  .emo-track { flex:1; height:8px; background:var(--beige-200); border-radius:100px; overflow:hidden; }
+  .emo-fill { height:100%; border-radius:100px; width:0%; transition:width 0.5s ease; }
+  .emo-pct { font-size:12px; color:var(--text-soft); width:36px; text-align:right; flex-shrink:0; }
+  .mic-panel { display:flex; align-items:center; gap:12px; }
+  .mic-orb { width:44px; height:44px; border-radius:50%; background:linear-gradient(135deg,var(--blue-500),var(--blue-700)); display:flex; align-items:center; justify-content:center; flex-shrink:0; cursor:pointer; animation:pulse 2s ease-in-out infinite; box-shadow:0 4px 14px rgba(79,114,166,0.3); }
+  @keyframes pulse { 0%,100%{box-shadow:0 4px 14px rgba(79,114,166,0.3)} 50%{box-shadow:0 4px 22px rgba(79,114,166,0.55)} }
+  .mic-orb svg { width:18px; height:18px; fill:none; stroke:white; stroke-width:2.2; stroke-linecap:round; }
+  .mic-info { flex:1; }
+  .mic-main { font-size:13.5px; color:var(--text-dark); font-weight:500; }
+  .mic-sub { font-size:12px; color:var(--text-soft); margin-top:2px; }
+  .cmd-list { display:flex; flex-direction:column; gap:8px; margin-top:14px; }
+  .cmd-item { display:flex; align-items:center; gap:10px; padding:9px 12px; background:var(--beige-50); border:1px solid var(--beige-100); border-radius:12px; font-size:13px; color:var(--text-mid); }
+  .cmd-phrase { font-size:12px; background:rgba(107,140,186,0.1); color:var(--blue-600); border:1px solid rgba(107,140,186,0.2); border-radius:6px; padding:2px 8px; font-weight:500; flex-shrink:0; }
+  .history-list { display:flex; flex-direction:column; gap:6px; max-height:160px; overflow-y:auto; }
+  .history-list::-webkit-scrollbar { width:4px; }
+  .history-list::-webkit-scrollbar-thumb { background:var(--beige-300); border-radius:4px; }
+  .history-item { display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text-mid); padding:6px 0; border-bottom:1px solid var(--beige-100); }
+  .history-item:last-child { border-bottom:none; }
+  .history-item .time { color:var(--text-soft); font-size:11px; margin-left:auto; }
+  .toast { position:fixed; bottom:28px; left:50%; transform:translateX(-50%) translateY(16px); background:var(--blue-700); color:white; padding:10px 22px; border-radius:100px; font-size:13.5px; opacity:0; pointer-events:none; transition:all 0.3s; white-space:nowrap; z-index:999; }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+  .loading-overlay { position:fixed; inset:0; background:rgba(253,248,242,0.92); backdrop-filter:blur(8px); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:100; gap:16px; transition:opacity 0.4s; }
+  .loading-spinner { width:48px; height:48px; border:3px solid var(--beige-200); border-top-color:var(--blue-500); border-radius:50%; animation:spin 0.8s linear infinite; }
+  @keyframes spin { to{transform:rotate(360deg)} }
+  .loading-text { font-size:15px; color:var(--text-mid); }
+  @media(max-width:700px) { .main-grid{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-spinner"></div>
+  <div class="loading-text" id="loadingText">Loading face detection models…</div>
+</div>
+<header>
+  <div class="brand">
+    <div class="logo-mark"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 10-16 0"/></svg></div>
+    <div class="brand-name">Emotion Detection<span>Real-time · Hands-free</span></div>
+  </div>
+  <div class="user-chip">
+    <div class="dot"></div>
+    <span id="welcomeUser">Active Session</span>
+    <button class="logout-btn" id="logoutBtn">Sign out</button>
+  </div>
+</header>
+<div class="main-grid">
+  <div class="camera-card">
+    <div class="camera-toolbar">
+      <div class="label"><div class="rec-dot"></div>Live Camera</div>
+      <div class="cam-status-chip" id="camChip">Initialising…</div>
+    </div>
+    <div class="video-wrap">
+      <video id="video" autoplay muted playsinline></video>
+      <canvas id="overlay"></canvas>
+      <div class="no-face-msg" id="noFaceMsg">👤 No face detected — move closer</div>
+    </div>
+    <div class="emotion-banner">
+      <div class="emotion-emoji" id="emojiDisplay">😐</div>
+      <div class="emotion-info">
+        <div class="emotion-label" id="emotionLabel">Waiting…</div>
+        <div class="emotion-conf" id="emotionConf">Position your face in the camera</div>
+        <div class="emotion-bar-wrap"><div class="emotion-bar" id="emotionBar"></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="side-panel">
+    <div class="panel-card">
+      <div class="panel-title">📊 Emotion Breakdown</div>
+      <div id="emoBreakdown">
+        <div class="emo-row" data-emo="happy"><div class="emo-name">😊 Happy</div><div class="emo-track"><div class="emo-fill" style="background:var(--emotion-happy)"></div></div><div class="emo-pct">0%</div></div>
+        <div class="emo-row" data-emo="sad"><div class="emo-name">😢 Sad</div><div class="emo-track"><div class="emo-fill" style="background:var(--emotion-sad)"></div></div><div class="emo-pct">0%</div></div>
+        <div class="emo-row" data-emo="angry"><div class="emo-name">😠 Angry</div><div class="emo-track"><div class="emo-fill" style="background:var(--emotion-angry)"></div></div><div class="emo-pct">0%</div></div>
+        <div class="emo-row" data-emo="surprised"><div class="emo-name">😲 Surprised</div><div class="emo-track"><div class="emo-fill" style="background:var(--emotion-surprised)"></div></div><div class="emo-pct">0%</div></div>
+        <div class="emo-row" data-emo="fearful"><div class="emo-name">😨 Fearful</div><div class="emo-track"><div class="emo-fill" style="background:var(--emotion-fearful)"></div></div><div class="emo-pct">0%</div></div>
+        <div class="emo-row" data-emo="disgusted"><div class="emo-name">🤢 Disgusted</div><div class="emo-track"><div class="emo-fill" style="background:var(--emotion-disgusted)"></div></div><div class="emo-pct">0%</div></div>
+        <div class="emo-row" data-emo="neutral"><div class="emo-name">😐 Neutral</div><div class="emo-track"><div class="emo-fill" style="background:var(--emotion-neutral)"></div></div><div class="emo-pct">0%</div></div>
+      </div>
+    </div>
+    <div class="panel-card">
+      <div class="panel-title">🎤 Voice Control</div>
+      <div class="mic-panel">
+        <div class="mic-orb" id="micOrb">
+          <svg viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M19 11a7 7 0 01-14 0M12 18v4M8 22h8"/></svg>
+        </div>
+        <div class="mic-info">
+          <div class="mic-main" id="micMain">👆 Click mic to activate</div>
+          <div class="mic-sub" id="micSub">Voice control inactive</div>
+        </div>
+      </div>
+      <div class="cmd-list">
+        <div class="cmd-item"><span class="cmd-phrase">"pause"</span> Pause detection</div>
+        <div class="cmd-item"><span class="cmd-phrase">"resume"</span> Resume detection</div>
+        <div class="cmd-item"><span class="cmd-phrase">"sign out"</span> Logout</div>
+        <div class="cmd-item"><span class="cmd-phrase">"clear history"</span> Clear log</div>
+      </div>
+    </div>
+    <div class="panel-card">
+      <div class="panel-title">📋 Emotion History</div>
+      <div class="history-list" id="historyList">
+        <div class="history-item" style="color:var(--text-soft)">Detection will appear here…</div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<script>
+  const video         = document.getElementById("video");
+  const overlay       = document.getElementById("overlay");
+  const emotionLabel  = document.getElementById("emotionLabel");
+  const emotionConf   = document.getElementById("emotionConf");
+  const emotionBar    = document.getElementById("emotionBar");
+  const emojiDisplay  = document.getElementById("emojiDisplay");
+  const noFaceMsg     = document.getElementById("noFaceMsg");
+  const camChip       = document.getElementById("camChip");
+  const historyList   = document.getElementById("historyList");
+  const loadingOverlay= document.getElementById("loadingOverlay");
+  const loadingText   = document.getElementById("loadingText");
+  const toast         = document.getElementById("toast");
+  const micMain       = document.getElementById("micMain");
+  const micSub        = document.getElementById("micSub");
+  const micOrb        = document.getElementById("micOrb");
+
+  const deviceId = localStorage.getItem("device_id");
+  const savedUser = deviceId ? localStorage.getItem("device_session_" + deviceId) : null;
+  if (savedUser) document.getElementById("welcomeUser").textContent = "Hi, " + savedUser;
+
+  document.getElementById("logoutBtn").onclick = () => {
+    if (deviceId) localStorage.removeItem("device_session_" + deviceId);
+    window.location.href = "login.html";
+  };
+
+  function showToast(msg, dur=2200) {
+    toast.textContent = msg; toast.classList.add("show");
+    clearTimeout(showToast._t); showToast._t = setTimeout(() => toast.classList.remove("show"), dur);
+  }
+
+  const EMOJI_MAP = { happy:"😊", sad:"😢", angry:"😠", surprised:"😲", fearful:"😨", disgusted:"🤢", neutral:"😐" };
+  const COLOR_MAP = { happy:"var(--emotion-happy)", sad:"var(--emotion-sad)", angry:"var(--emotion-angry)", surprised:"var(--emotion-surprised)", fearful:"var(--emotion-fearful)", disgusted:"var(--emotion-disgusted)", neutral:"var(--emotion-neutral)" };
+
+  const MODEL_URL = "https://justadudewhohacks.github.io/face-api.js/models";
+  let paused = false, historyLog = [], lastLoggedEmotion = "", lastLogTime = 0;
+
+  Promise.all([
+    faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+    faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)
+  ]).then(() => { loadingText.textContent = "Starting camera…"; startCamera(); })
+   .catch(err => {
+  console.error(err);
+  loadingText.textContent = "⚠️ Model load failed. Check internet connection.";
+});
+
+  function startCamera() {
+    navigator.mediaDevices.getUserMedia({ video: { width:1280, height:720, facingMode:"user" } })
+      .then(stream => {
+        video.srcObject = stream;
+        video.onloadedmetadata = () => {
+          overlay.width = video.videoWidth; overlay.height = video.videoHeight;
+          camChip.textContent = "Camera active"; camChip.classList.add("active");
+          loadingOverlay.style.opacity = "0";
+          setTimeout(() => loadingOverlay.style.display = "none", 400);
+          startDetection();
+        };
+      })
+      .catch(() => { loadingText.textContent = "⚠️ Camera access denied."; camChip.textContent = "No camera"; });
+  }
+
+  function startDetection() {
+    const ctx = overlay.getContext("2d");
+    setInterval(async () => {
+      if (paused) return;
+      const detections = await faceapi
+        .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ inputSize:416, scoreThreshold:0.5 }))
+        .withFaceExpressions();
+      ctx.clearRect(0, 0, overlay.width, overlay.height);
+      if (!detections || detections.length === 0) {
+        emotionLabel.textContent = "No face detected"; emotionConf.textContent = "Move closer to the camera";
+        emojiDisplay.textContent = "👤"; emotionBar.style.width = "0%";
+        noFaceMsg.style.display = "block"; resetBreakdown(); return;
+      }
+      noFaceMsg.style.display = "none";
+      const scaleX = overlay.width / (video.videoWidth || overlay.width);
+      const scaleY = overlay.height / (video.videoHeight || overlay.height);
+      detections.forEach(det => {
+        const box = det.detection.box;
+        const x=box.x*scaleX, y=box.y*scaleY, w=box.width*scaleX, h=box.height*scaleY;
+        ctx.save(); ctx.strokeStyle="rgba(107,140,186,0.9)"; ctx.lineWidth=2.5;
+        ctx.shadowColor="rgba(107,140,186,0.6)"; ctx.shadowBlur=10;
+        drawRoundedRect(ctx,x,y,w,h,8); ctx.restore();
+        const cl=18; ctx.save(); ctx.strokeStyle="#4f72a6"; ctx.lineWidth=3; ctx.lineCap="round";
+        ctx.beginPath(); ctx.moveTo(x+cl,y); ctx.lineTo(x,y); ctx.lineTo(x,y+cl); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x+w-cl,y); ctx.lineTo(x+w,y); ctx.lineTo(x+w,y+cl); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x+cl,y+h); ctx.lineTo(x,y+h); ctx.lineTo(x,y+h-cl); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x+w-cl,y+h); ctx.lineTo(x+w,y+h); ctx.lineTo(x+w,y+h-cl); ctx.stroke();
+        ctx.restore();
+      });
+      const exprs = detections[0].expressions;
+      let topEmotion="neutral", topVal=0;
+      for (const [emo,val] of Object.entries(exprs)) { if (val>topVal) { topVal=val; topEmotion=emo; } }
+      const pct=Math.round(topVal*100), color=COLOR_MAP[topEmotion]||"var(--blue-500)";
+      emotionLabel.textContent = topEmotion.charAt(0).toUpperCase()+topEmotion.slice(1);
+      emotionLabel.style.color = color;
+      emotionConf.textContent = `${pct}% confidence · ${detections.length} face${detections.length>1?"s":""} detected`;
+      emojiDisplay.textContent = EMOJI_MAP[topEmotion]||"😐";
+      emotionBar.style.width = pct+"%"; emotionBar.style.background = color;
+      updateBreakdown(exprs);
+      const now=Date.now();
+      if (topEmotion!==lastLoggedEmotion || now-lastLogTime>4000) { addHistory(topEmotion,pct); lastLoggedEmotion=topEmotion; lastLogTime=now; }
+    }, 600);
+  }
+
+  function drawRoundedRect(ctx,x,y,w,h,r) {
+    ctx.beginPath(); ctx.moveTo(x+r,y);
+    ctx.lineTo(x+w-r,y); ctx.arcTo(x+w,y,x+w,y+r,r);
+    ctx.lineTo(x+w,y+h-r); ctx.arcTo(x+w,y+h,x+w-r,y+h,r);
+    ctx.lineTo(x+r,y+h); ctx.arcTo(x,y+h,x,y+h-r,r);
+    ctx.lineTo(x,y+r); ctx.arcTo(x,y,x+r,y,r);
+    ctx.closePath(); ctx.stroke();
+  }
+  function updateBreakdown(exprs) {
+    document.querySelectorAll("#emoBreakdown .emo-row").forEach(row => {
+      const emo=row.getAttribute("data-emo"), val=exprs[emo]||0, pct=Math.round(val*100);
+      row.querySelector(".emo-fill").style.width = pct+"%";
+      row.querySelector(".emo-pct").textContent = pct+"%";
+    });
+  }
+  function resetBreakdown() {
+    document.querySelectorAll("#emoBreakdown .emo-fill").forEach(el => el.style.width="0%");
+    document.querySelectorAll("#emoBreakdown .emo-pct").forEach(el => el.textContent="0%");
+  }
+  function addHistory(emotion,pct) {
+    const time=new Date().toTimeString().slice(0,5);
+    historyLog.unshift({emotion,pct,time});
+    if (historyLog.length>30) historyLog.pop();
+    renderHistory();
+  }
+  function renderHistory() {
+    if (!historyLog.length) { historyList.innerHTML='<div class="history-item" style="color:var(--text-soft)">No data yet</div>'; return; }
+    historyList.innerHTML = historyLog.slice(0,15).map(h=>`
+      <div class="history-item">
+        <span>${EMOJI_MAP[h.emotion]||"😐"}</span>
+        <span>${h.emotion.charAt(0).toUpperCase()+h.emotion.slice(1)}</span>
+        <span style="font-size:12px;color:var(--text-soft)">${h.pct}%</span>
+        <span class="time">${h.time}</span>
+      </div>`).join("");
+  }
+
+  // ── Voice ──
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { micMain.textContent="⚠️ Speech API not supported"; micSub.textContent="Use Chrome browser"; }
+  else {
+    let voiceRec=null, voiceActive=false, voiceLocked=false;
+    function buildVoice() {
+      voiceRec = new SR(); voiceRec.continuous=true; voiceRec.interimResults=false; voiceRec.lang="en-US";
+      voiceRec.onstart = () => { voiceActive=true; micMain.textContent="🎤 Listening…"; micSub.textContent="Say a command"; micOrb.style.background="linear-gradient(135deg,#3a5a8c,#2c4570)"; };
+      voiceRec.onend = () => { voiceActive=false; if (!voiceLocked) { micMain.textContent="Mic restarting…"; setTimeout(()=>{ if (!voiceLocked){buildVoice();voiceRec.start();} },600); } };
+      voiceRec.onerror = (e) => {
+        voiceActive=false;
+        if (e.error==="not-allowed") { voiceLocked=true; micMain.textContent="❌ Mic blocked"; micSub.textContent="Click 🔒 in address bar → Allow Microphone"; showToast("⚠️ Allow microphone in Chrome address bar",5000); }
+        else if (e.error==="no-speech") { micSub.textContent="No speech — keep talking"; }
+        else if (e.error!=="aborted") { micSub.textContent="Error: "+e.error; }
+      };
+      voiceRec.onresult = (e) => {
+        const text=e.results[e.results.length-1][0].transcript.toLowerCase().trim();
+        micSub.textContent="Heard: ""+text+"""; showToast("🎤 "+text);
+        if (text.includes("pause")||text.includes("stop detection")) { paused=true; micMain.textContent="⏸ Paused"; showToast("⏸ Paused"); }
+        else if (text.includes("resume")||text.includes("continue")||text.includes("start detection")) { paused=false; micMain.textContent="🎤 Listening…"; showToast("▶ Resumed"); }
+        else if (text.includes("sign out")||text.includes("logout")||text.includes("log out")) { showToast("👋 Signing out…"); setTimeout(()=>document.getElementById("logoutBtn").click(),1000); }
+        else if (text.includes("clear history")||text.includes("clear log")) { historyLog.length=0; renderHistory(); showToast("🗑 History cleared"); }
+      };
+    }
+    micOrb.addEventListener("click", () => {
+      if (voiceActive) { voiceLocked=true; voiceRec&&voiceRec.stop(); micMain.textContent="👆 Click mic to activate"; micSub.textContent="Voice off"; micOrb.style.background="linear-gradient(135deg,#8a9aab,#6b7a8b)"; return; }
+      voiceLocked=false; buildVoice();
+      try { voiceRec.start(); } catch(err) { micSub.textContent="Could not start: "+err.message; }
+    });
+    setTimeout(()=>{ if (!voiceActive&&!voiceLocked){buildVoice();voiceRec.start();} },1200);
+  }
+</script>
+</body>
+</html>
